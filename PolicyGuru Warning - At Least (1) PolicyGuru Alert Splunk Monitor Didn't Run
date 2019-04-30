@@ -1,0 +1,4 @@
+index="scheduler" savedsearch_name="PolicyGuru Alert*"
+| rex field=savedsearch_name "(?<savedsearch_name_new>.*15m)"
+| stats count by savedsearch_name_new
+| where count >=3
