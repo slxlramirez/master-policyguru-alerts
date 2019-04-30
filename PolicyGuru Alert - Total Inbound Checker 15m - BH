@@ -1,0 +1,21 @@
+| dbxquery 
+maxrows=250000
+connection="ngp_connection" 
+timeout=1800 query="
+SELECT   COUNT(a.guid) as calls
+FROM     master.flowstart a
+WHERE    a.routername LIKE 'enum%' AND
+         a.direction = 1 AND
+         a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+         a.guid NOT IN 
+         (
+         SELECT guid 
+         FROM   master.policyflowdetails s
+         WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+                s.policydisposition = 2 
+         -- ** THIS SECTION EXCLUDES TERMINATED **
+         )
+" shortnames=t
+| table calls
+| where calls > 1750 `comment("** SET THRESHOLD HERE **")`
+`comment("** THIS ALERT SHOULD BE USED WITH NO TIME OF DAY SCHEDULE, 24x7 WITH 1 THRESHOLD **")`
