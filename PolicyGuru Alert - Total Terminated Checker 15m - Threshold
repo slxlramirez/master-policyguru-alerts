@@ -1,0 +1,20 @@
+| dbxquery 
+maxrows=250000
+connection="ngp_connection" 
+timeout=1800 query="
+SELECT CASE 
+         WHEN s.policydisposition=0	THEN 'UNKNOWN'
+         WHEN s.policydisposition=1	THEN 'ALLOWED'
+         WHEN s.policydisposition=2	THEN 'TERMINATED'
+         WHEN s.policydisposition=3	THEN 'REDIRECTED'
+         WHEN s.policydisposition=4	THEN 'TRANSFERRED'
+         WHEN s.policydisposition=5	THEN 'UNANSWERED'
+         WHEN s.policydisposition=6	THEN 'EXPIRED'
+         ELSE 'OTHER'
+       END as policydisposition,
+       COUNT(s.guid) as calls
+FROM   master.policyflowdetails s
+WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint
+GROUP BY s.policydisposition
+" shortnames=t
+| table policydisposition calls
