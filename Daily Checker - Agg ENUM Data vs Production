@@ -1,0 +1,33 @@
+| dbxquery 
+timeout=1800
+maxrows=1
+connection=mssv_db
+query="
+SELECT 'myjoin' myjoin, 
+        count(guid) as agg_calls
+FROM    pg_fs_pfd_cdr a
+WHERE   flowtime_t >= (date_trunc('day', current_date)::timestamp AT TIME ZONE 'CST6CDT' AT TIME ZONE 'GMT' - interval '1 day')
+        AND flowtime_t  < (date_trunc('day', current_date)::timestamp AT TIME ZONE 'CST6CDT' AT TIME ZONE 'GMT')
+"
+shortnames=t
+| join type=left myjoin
+[
+| dbxquery 
+timeout=1800
+maxrows=1
+connection=ngp_connection
+query="
+SELECT 'myjoin' myjoin, 
+        count(guid) as pg_calls
+FROM    master.flowstart a
+WHERE   a.analyticstime >= (extract ('epoch' from date_trunc('day', current_date)::timestamp AT TIME ZONE 'CST6CDT' AT TIME ZONE 'GMT'  - interval '1 day')*1000)::bigint AND
+        a.analyticstime  < (extract ('epoch' from date_trunc('day', current_date)::timestamp AT TIME ZONE 'CST6CDT' AT TIME ZONE 'GMT'  - interval '0 day')*1000)::bigint AND
+        a.routername LIKE 'enum%'
+"
+shortnames=t
+]
+| table *
+| eval call_diff=agg_calls-pg_calls
+| eval call_diff_perc=ROUND(call_diff/agg_calls,3)*100
+| table agg_calls pg_calls call_diff call_diff_perc
+| where call_diff > 1
