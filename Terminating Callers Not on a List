@@ -1,20 +1,21 @@
-| dbxquery
+| dbxquery 
 maxrows=250000
-connection="ngp_connection"
+connection="ngp_connection" 
 timeout=1800 query="
 SELECT a.sourcenumber, b.groups, a.calls
 FROM
 (
 SELECT  sourcenumber,
         count(a.guid) as calls
-FROM     master.flowstart a
-WHERE   
+FROM     master.flowstart a 
+WHERE    
          a.analyticstime >= (extract ('epoch' from (date_trunc('day', current_date) - interval '1 day')::timestamp AT TIME ZONE 'CST6CDT' AT TIME ZONE 'GMT') * 1000)::bigint AND
          a.analyticstime   < (extract ('epoch' from (date_trunc('day', current_date)                               )::timestamp AT TIME ZONE 'CST6CDT' AT TIME ZONE 'GMT') * 1000)::bigint AND
          a.guid IN
-         (SELECT  guid
-             FROM    master.policyflowdetails b
-             WHERE   b.policydisposition=2 AND
+         (
+         SELECT  guid
+         FROM    master.policyflowdetails b 
+         WHERE   b.policydisposition=2 AND
                      b.analyticstime >= (extract ('epoch' from (date_trunc('day', current_date) - interval '1 day')::timestamp AT TIME ZONE 'CST6CDT' AT TIME ZONE 'GMT') * 1000)::bigint AND
                      b.analyticstime   < (extract ('epoch' from (date_trunc('day', current_date)                               )::timestamp AT TIME ZONE 'CST6CDT' AT TIME ZONE 'GMT') * 1000)::bigint
          )
@@ -25,7 +26,11 @@ GROUP BY sourcenumber
          array_to_string(array_agg(u.name), ',') as groups
   FROM
   (
-    SELECT t.name, s.value
+    SELECT t.name, 
+           CASE 
+              WHEN LEFT(s.value,3) = '^\+' THEN RIGHT(s.value,12)
+              ELSE s.value
+           END as value
     FROM master.listing s JOIN master.listinggroup t ON s.listinggroupid=t.id
     ORDER BY t.name, s.value
   ) u
