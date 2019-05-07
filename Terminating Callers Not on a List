@@ -18,7 +18,10 @@ WHERE
          WHERE   b.policydisposition=2 AND
                      b.analyticstime >= (extract ('epoch' from (date_trunc('day', current_date) - interval '1 day')::timestamp AT TIME ZONE 'CST6CDT' AT TIME ZONE 'GMT') * 1000)::bigint AND
                      b.analyticstime   < (extract ('epoch' from (date_trunc('day', current_date)                               )::timestamp AT TIME ZONE 'CST6CDT' AT TIME ZONE 'GMT') * 1000)::bigint
-         )
+                     AND
+                     b.ruleid LIKE '%Specific Harassing Callers%'
+         ) AND 
+         a.direction = 1
 GROUP BY sourcenumber
 ) a LEFT OUTER JOIN
 (
@@ -28,7 +31,7 @@ GROUP BY sourcenumber
   (
     SELECT t.name, 
            CASE 
-              WHEN LEFT(s.value,3) = '^\+' THEN RIGHT(s.value,12)
+              WHEN LEFT(s.value,3) = '^\+' THEN SUBSTR(s.value,3,LENGTH(s.value))
               ELSE s.value
            END as value
     FROM master.listing s JOIN master.listinggroup t ON s.listinggroupid=t.id
