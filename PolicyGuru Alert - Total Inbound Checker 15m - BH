@@ -2,7 +2,8 @@
 maxrows=250000
 connection="ngp_connection" 
 timeout=1800 query="
-SELECT   COUNT(a.guid) as calls
+SELECT   TO_CHAR(now(),'YYYY-MM-DD hh24:mi:ss') as time,
+         COUNT(a.guid) as calls
 FROM     master.flowstart a
 WHERE    a.routername LIKE 'enum%' AND
          a.direction = 1 AND
@@ -14,8 +15,13 @@ WHERE    a.routername LIKE 'enum%' AND
          WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
                 s.policydisposition = 2 
          -- ** THIS SECTION EXCLUDES TERMINATED **
+         ) AND
+         a.sourcenumber NOT IN
+         (
+         SELECT distinct a.value
+         FROM   master.listing a JOIN master.listinggroup b ON a.listinggroupid=b.id
+         WHERE  b.name IN ('Whitelist','Graylist')
          )
 " shortnames=t
-| table calls
-| where calls > 1750 `comment("** SET THRESHOLD HERE **")`
-`comment("** THIS ALERT SHOULD BE USED WITH NO TIME OF DAY SCHEDULE, 24x7 WITH 1 THRESHOLD **")`
+| table time calls
+| where calls > 750 `comment("** SET THRESHOLD HERE **")`
