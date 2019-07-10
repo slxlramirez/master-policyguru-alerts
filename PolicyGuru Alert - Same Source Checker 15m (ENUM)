@@ -28,7 +28,7 @@ WHERE    a.routername LIKE 'enum%' AND
          a.sourcenumber <> '' AND
 a.sourcenumber IS NOT NULL
 GROUP BY sourcenumber
-HAVING COUNT(a.guid) > 1
+HAVING COUNT(a.guid) > 50
 ORDER BY COUNT(a.guid) DESC
 " shortnames=t
 | table starttime endtime ts sourcenumber calls
