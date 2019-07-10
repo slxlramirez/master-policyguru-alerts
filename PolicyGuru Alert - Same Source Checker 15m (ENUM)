@@ -2,7 +2,10 @@
 maxrows=250000
 connection="ngp_connection" 
 timeout=1800 query="
-SELECT   sourcenumber,
+SELECT   to_char(date_trunc('day',current_date),'YYYY-MM-DD') as starttime,
+         to_char(date_trunc('day',current_date) + interval '1 day','YYYY-MM-DD') as endtime,
+         to_char(now()::timestamp,'YYYY-MM-DD hh24:mi:ss') as ts,
+         sourcenumber,
          COUNT(a.guid) as calls
 FROM     master.flowstart a
 WHERE    a.routername LIKE 'enum%' AND
@@ -25,7 +28,8 @@ WHERE    a.routername LIKE 'enum%' AND
          a.sourcenumber <> '' AND
 a.sourcenumber IS NOT NULL
 GROUP BY sourcenumber
-HAVING COUNT(a.guid) > 50
+HAVING COUNT(a.guid) > 1
 ORDER BY COUNT(a.guid) DESC
 " shortnames=t
-| table sourcenumber calls
+| table starttime endtime ts sourcenumber calls
+| sort -calls
