@@ -1,41 +1,41 @@
 | dbxquery 
-maxrows=250000
+maxrows=25000
 connection="ngp_connection" 
 timeout=1800 query="
 SELECT x.starttime,
-       x.endtime,
-       x.ts,
-       x.sourcenumber,
-       x.calls,
-       x.spread,
-       y.calldispositions
+x.endtime,
+x.ts,
+x.sourcenumber,
+x.calls,
+x.spread,
+y.calldispositions
 FROM
 (
-SELECT   to_char(date_trunc('day',current_date),'YYYY-MM-DD') as starttime,
-         to_char(date_trunc('day',current_date) + interval '1 day','YYYY-MM-DD') as endtime,
-         to_char(now()::timestamp,'YYYY-MM-DD hh24:mi:ss') as ts,
-         sourcenumber,
-         COUNT(a.guid) as calls,
-         COUNT(distinct destinationnumber) as spread
-FROM     master.flowstart a
-WHERE    a.routername LIKE 'enum%' AND
-         a.direction = 1 AND
-         a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
-         a.guid NOT IN 
-         (
-         SELECT guid 
-         FROM   master.policyflowdetails s
-         WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
-                s.policydisposition = 2
-         ) AND
-         a.sourcenumber NOT IN
-         (
-         SELECT distinct a.value
-         FROM   master.listing a JOIN master.listinggroup b ON a.listinggroupid=b.id
-         WHERE  b.name IN ('WhiteList','Graylist')
-         ) AND
-         a.sourcenumber NOT IN ('Restricted','anonymous','Anonymous') AND
-         a.sourcenumber <> '' AND
+SELECT to_char(date_trunc('day',current_date),'YYYY-MM-DD') as starttime,
+to_char(date_trunc('day',current_date) + interval '1 day','YYYY-MM-DD') as endtime,
+to_char(now()::timestamp,'YYYY-MM-DD hh24:mi:ss') as ts,
+sourcenumber,
+COUNT(a.guid) as calls,
+COUNT(distinct destinationnumber) as spread
+FROM master.flowstart a
+WHERE a.routername LIKE 'enum%' AND
+a.direction = 1 AND
+a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+a.guid NOT IN 
+(
+SELECT guid 
+FROM master.policyflowdetails s
+WHERE s.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+s.policydisposition = 2
+) AND
+a.sourcenumber NOT IN
+(
+SELECT distinct a.value
+FROM master.listing a JOIN master.listinggroup b ON a.listinggroupid=b.id
+WHERE b.name IN ('WhiteList','Graylist')
+) AND
+a.sourcenumber NOT IN ('Restricted','anonymous','Anonymous') AND
+a.sourcenumber <> '' AND
 a.sourcenumber IS NOT NULL
 GROUP BY sourcenumber
 HAVING COUNT(a.guid) > 20
@@ -43,22 +43,33 @@ ORDER BY COUNT(a.guid) DESC
 LIMIT 1
 ) x LEFT OUTER JOIN
 (
-SELECT sourcenumber, string_agg(calldispositions, ',') as calldispositions, sum(calls) as calls
+SELECT sourcenumber,
+       string_agg(calldispositions, ', ') as calldispositions, 
+       sum(calls) as calls
 FROM
 (
-SELECT   fs.sourcenumber, REPLACE((fe.meta::json->'callDispositions')::varchar,'\"','') as callDispositions, count(fs.guid) as calls
-FROM     master.flowstart fs LEFT OUTER JOIN master.flowend fe ON fs.guid=fe.guid
-WHERE    fe.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint
-GROUP BY fs.sourcenumber, REPLACE((fe.meta::json->'callDispositions')::varchar,'\"','')
-ORDER BY fs.sourcenumber, REPLACE((fe.meta::json->'callDispositions')::varchar,'\"','')
-) s GROUP BY sourcenumber
+SELECT sourcenumber, 
+       calldispositions || ' (' || calls || ')' as calldispositions,
+       calls
+FROM
+(
+    SELECT fs.sourcenumber, 
+           REPLACE((fe.meta::json->'callDispositions')::varchar,'\"','') as callDispositions, 
+           count(fs.guid) as calls
+    FROM master.flowstart fs LEFT OUTER JOIN master.flowend fe ON fs.guid=fe.guid
+    WHERE fe.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint
+    GROUP BY fs.sourcenumber, REPLACE((fe.meta::json->'callDispositions')::varchar,'\"','')
+    ORDER BY fs.sourcenumber, REPLACE((fe.meta::json->'callDispositions')::varchar,'\"','')
+) s 
+) t
+GROUP BY sourcenumber
 ) y ON x.sourcenumber=y.sourcenumber
 " shortnames=t
 | table starttime,
-       endtime,
-       ts,
-       sourcenumber,
-       calls,
-       spread,
-       calldispositions
+endtime,
+ts,
+sourcenumber,
+calls,
+spread,
+calldispositions
 | sort -calls
