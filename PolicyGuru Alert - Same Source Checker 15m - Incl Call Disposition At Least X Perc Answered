@@ -1,0 +1,95 @@
+| dbxquery
+maxrows=25000
+connection="ngp_connection"
+timeout=1800 query="
+SELECT x.starttime,
+x.endtime,
+x.ts,
+x.sourcenumber,
+x.calls,
+x.spread,
+y.calldispositions
+FROM
+(
+SELECT   to_char(date_trunc('day',current_date),'YYYY-MM-DD') as starttime,
+         to_char(date_trunc('day',current_date) + interval '1 day','YYYY-MM-DD') as endtime,
+         to_char(now()::timestamp,'YYYY-MM-DD hh24:mi:ss') as ts,
+         sourcenumber,
+         COUNT(a.guid) as calls,
+         COUNT(distinct destinationnumber) as spread
+FROM     master.flowstart a
+WHERE    a.routername LIKE 'enum%' AND
+         a.direction = 1 AND
+         a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+         a.guid NOT IN
+         (
+         SELECT guid
+         FROM master.policyflowdetails s
+         WHERE s.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+         s.policydisposition = 2
+         ) AND
+         a.sourcenumber NOT IN
+         (
+         SELECT distinct a.value
+         FROM master.listing a JOIN master.listinggroup b ON a.listinggroupid=b.id
+         WHERE b.name IN ('WhiteList','Graylist')
+         ) AND
+         a.sourcenumber NOT IN ('Restricted','anonymous','Anonymous') AND
+         a.sourcenumber <> '' AND
+         a.sourcenumber IS NOT NULL
+GROUP BY sourcenumber
+HAVING   COUNT(a.guid) > 35 -- set the how many calls here
+ORDER BY COUNT(a.guid) DESC
+) x LEFT OUTER JOIN
+(
+SELECT sourcenumber,
+       string_agg(calldispositions, ',') as calldispositions,
+       sum(calls) as calls
+FROM
+(
+SELECT sourcenumber,
+       calldispositions || '(' || calls || ')' as calldispositions,
+       calls
+FROM
+(
+    SELECT fs.sourcenumber,
+           REPLACE((fe.meta::json->'callDispositions')::varchar,'\"','') as callDispositions,
+           count(fs.guid) as calls
+    FROM   master.flowstart fs LEFT OUTER JOIN master.flowend fe ON fs.guid=fe.guid
+    WHERE  fe.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+           fs.direction = 1
+    GROUP BY fs.sourcenumber, REPLACE((fe.meta::json->'callDispositions')::varchar,'\"','')
+    ORDER BY fs.sourcenumber, REPLACE((fe.meta::json->'callDispositions')::varchar,'\"','')
+) s
+) t
+GROUP BY sourcenumber
+) y ON x.sourcenumber=y.sourcenumber
+" shortnames=t
+| table starttime,
+endtime,
+ts,
+sourcenumber,
+calls,
+spread,
+calldispositions
+| sort -calls
+| rex field=calldispositions "ANSWERED(?<answered_calls>\(\d+\))"
+| eval answered_calls=trim(answered_calls,"(")
+| eval answered_calls=trim(answered_calls,")")
+| rex field=calldispositions "UNANSWERED(?<unanswered_calls>\(\d+\))"
+| eval unanswered_calls=trim(unanswered_calls,"(")
+| eval unanswered_calls=trim(unanswered_calls,")")
+| rex field=calldispositions "FAILED(?<failed_calls>\(\d+\))"
+| eval failed_calls=trim(failed_calls,"(")
+| eval failed_calls=trim(failed_calls,")")
+| rex field=calldispositions "BUSY(?<busy_calls>\(\d+\))"
+| eval busy_calls=trim(busy_calls,"(")
+| eval busy_calls=trim(busy_calls,")")
+| fillnull value=0 answered_calls failed_calls unanswered_calls busy_calls
+| eval total_sip_calls=answered_calls+failed_calls+unanswered_calls+busy_calls
+| eval perc_busy=ROUND(CASE(busy_calls=0, 0, busy_calls>0,busy_calls/total_sip_calls),3)*100
+| eval perc_failed=ROUND(CASE(failed_calls=0, 0, failed_calls>0,failed_calls/total_sip_calls),3)*100
+| eval perc_unanswered=ROUND(CASE(unanswered_calls=0, 0, unanswered_calls>0,unanswered_calls/total_sip_calls),3)*100
+| eval perc_answered=ROUND(CASE(answered_calls=0, 0, answered_calls>0,answered_calls/total_sip_calls),3)*100
+| table starttime endtime ts sourcenumber calls spread answered_calls perc_answered unanswered_calls perc_unanswered busy_calls perc_busy failed_calls perc_failed total_sip_calls
+| search perc_answered > 90
