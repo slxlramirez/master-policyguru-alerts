@@ -1,14 +1,39 @@
 | dbxquery 
-maxrows=250000
 connection="ngp_connection" 
 timeout=1800 query="
-SELECT   a.destinationregion,
-         COUNT(a.guid) as calls
-FROM     master.flowstart a
-WHERE    a.routername LIKE 'enum%' AND
+SELECT  sourcenumber, destinationnumber, destinationregion, starttime, starttimeepoch, endtime, duration, is_this_interval,
+        CASE
+          WHEN is_this_interval=0 AND endtime IS NULL THEN 15
+          WHEN is_this_interval=1 AND endtime IS NULL THEN ROUND(((EXTRACT(EPOCH FROM now())*1000-starttimeepoch)/1000/60::numeric)::numeric,1)
+          WHEN is_this_interval=1 AND endtime IS NOT NULL THEN ROUND(duration::numeric,1)
+          ELSE 0
+        END as duration_current_interval
+FROM
+(
+SELECT   c.*,
+         extract('epoch' from starttime)*1000 as starttimeepoch,
+         extract('epoch' from starttime) as starttime2,
+         EXTRACT(EPOCH FROM now())*1000 as now1,
+         EXTRACT(EPOCH FROM now()) as now2,
+         extract (epoch from now() - INTERVAL  '0 MINUTE') * 1000 as earlier1,
+         extract (epoch from now() - INTERVAL  '0 MINUTE') as earlier2,
+         CASE
+            WHEN extract('epoch' from starttime)*1000 BETWEEN (extract (epoch from now() - INTERVAL  '15 MINUTE') * 1000) AND EXTRACT(EPOCH FROM now())*1000  THEN 1 ELSE 0
+         END as is_this_interval
+FROM
+(
+SELECT   a.sourcenumber,
+         a.destinationnumber,
+         a.destinationregion,
+         to_timestamp(a.flowtime/1000) as starttime,
+         to_timestamp(b.flowtime/1000) as endtime,
+         ROUND(b.duration/1000/60::numeric,1) as duration
+FROM     master.flowstart a LEFT OUTER JOIN master.flowend b ON a.guid=b.guid
+WHERE    a.routername LIKE 'sip%' AND
          a.direction = 2 AND
-         a.destinationregion <> 'United States' AND
-         a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+         a.destinationregion NOT IN ('United States') AND
+         a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTE') * 1000)::bigint AND
+         a.analyticstime  < (extract (epoch from now() - INTERVAL  '0 MINUTE') * 1000)::bigint AND
          a.guid NOT IN 
          (
          SELECT guid 
@@ -22,12 +47,15 @@ WHERE    a.routername LIKE 'enum%' AND
          FROM   master.listing a JOIN master.listinggroup b ON a.listinggroupid=b.id
          WHERE  b.name IN ('Whitelist','Graylist')
          )
-GROUP BY a.destinationregion
-ORDER BY count(a.guid) DESC
+) c
+) d
 " shortnames=t
-| table destinationregion calls
-| table destinationregion calls
-| addcoltotals
-| eval destinationregion = if(isnull(destinationregion), "Total", destinationregion)
-| where destinationregion="Total" and calls > 100
-`comment("** THIS ALERT CAN BE CLONED FOR BH, ABH, AND WE1/2**")`
+| table *
+| where duration_current_interval != 0
+| stats count as calls sum(duration_current_interval) as dur_m_calculated by destinationregion
+| table destinationregion calls dur_m_calculated
+| addcoltotals calls dur_m_calculated
+| fillnull value="Total" destinationregion
+`comment("be sure to set the runtime schedule for desired interval and")`
+`comment("use Custom Search in the alert properties with")`
+`comment("search destinationregion=\"Total\" AND (dur_m_calculated > 750 OR calls > 250)")`
