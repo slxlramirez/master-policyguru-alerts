@@ -3,9 +3,9 @@ connection="ngp_connection"
 timeout=1800 query="
 SELECT  sourcenumber, destinationnumber, destinationregion, starttime, starttimeepoch, endtime, duration, is_this_interval,
         CASE
-          WHEN is_this_interval=0 AND endtime IS NULL THEN 15
-          WHEN is_this_interval=1 AND endtime IS NULL THEN ROUND(((EXTRACT(EPOCH FROM now())*1000-starttimeepoch)/1000/60::numeric)::numeric,1)
-          WHEN is_this_interval=1 AND endtime IS NOT NULL THEN ROUND(duration::numeric,1)
+          WHEN NOT is_this_interval::boolean AND endtime IS NULL THEN 15
+          WHEN is_this_interval::boolean AND endtime IS NULL THEN ROUND(((EXTRACT(EPOCH FROM now())*1000-starttimeepoch)/1000/60::numeric)::numeric,1)
+          WHEN is_this_interval::boolean AND endtime IS NOT NULL THEN ROUND(duration::numeric,1)
           ELSE 0
         END as duration_current_interval
 FROM
@@ -32,13 +32,13 @@ FROM     master.flowstart a LEFT OUTER JOIN master.flowend b ON a.guid=b.guid
 WHERE    a.routername LIKE 'sip%' AND
          a.direction = 2 AND
          a.destinationregion NOT IN ('United States') AND
-         a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTE') * 1000)::bigint AND
+         a.analyticstime >= (extract (epoch from now() - INTERVAL '180 MINUTE') * 1000)::bigint AND
          a.analyticstime  < (extract (epoch from now() - INTERVAL  '0 MINUTE') * 1000)::bigint AND
          a.guid NOT IN 
          (
          SELECT guid 
          FROM   master.policyflowdetails s
-         WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+         WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '180 MINUTES') * 1000)::bigint AND
                 s.policydisposition = 2
          ) AND
          a.sourcenumber NOT IN
