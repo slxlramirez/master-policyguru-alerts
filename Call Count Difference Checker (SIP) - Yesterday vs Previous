@@ -1,0 +1,25 @@
+| dbxquery 
+connection="mssv_db" 
+timeout=1800 query="
+SELECT a.yesterday_sip_calls,
+       b.last_week_sip_calls,
+       ROUND(((a.yesterday_sip_calls-b.last_week_sip_calls)/b.last_week_sip_calls::numeric)*100,2) as difference
+FROM
+(
+SELECT 
+       'myjoin' as myjoin,
+       count(guid) as yesterday_sip_calls
+FROM   pg_fs_fe_cdr
+WHERE  datekey >= date_trunc('day', current_date) - interval '1 day' AND
+       datekey  < date_trunc('day', current_date)
+) a LEFT OUTER JOIN
+(
+SELECT 
+      'myjoin' as myjoin,
+       count(guid) as last_week_sip_calls
+FROM   pg_fs_fe_cdr
+WHERE  datekey >= date_trunc('day', current_date) - interval '8 day' AND
+       datekey  < date_trunc('day', current_date) - interval '7 day'
+) b ON a.myjoin::text=b.myjoin::text
+" shortnames=t
+| table yesterday_sip_calls last_week_sip_calls difference
