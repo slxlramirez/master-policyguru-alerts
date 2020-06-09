@@ -1,0 +1,29 @@
+| dbxquery 
+connection="local_ngp" 
+timeout=1800 query="
+SELECT   s.calls as failed_calls,
+         t.calls as terminated_calls,
+         s.calls - t.calls as diff
+FROM
+(
+SELECT   'myjoin' as myjoin,
+         REPLACE((meta::json->'callDispositions')::varchar,'\"','') as calldispositions,
+         count(guid) as calls
+FROM     master.flowend a
+WHERE    a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+         REPLACE((meta::json->'callDispositions')::varchar,'\"','') = 'FAILED'
+GROUP BY REPLACE((meta::json->'callDispositions')::varchar,'\"','')
+ORDER BY REPLACE((meta::json->'callDispositions')::varchar,'\"','')
+) s LEFT OUTER JOIN
+(
+SELECT   'myjoin' as myjoin,
+         CASE WHEN policydisposition=2 THEN 'TERMINATED' END as policydisposition,
+         count(guid) as calls
+FROM     master.policyflowdetails a
+WHERE    a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+         policydisposition = 2
+GROUP BY policydisposition
+ORDER BY policydisposition
+) t ON s.myjoin::text=t.myjoin::text  
+" shortnames=t
+| table failed_calls terminated_calls diff
