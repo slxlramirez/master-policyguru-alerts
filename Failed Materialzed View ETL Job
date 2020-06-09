@@ -1,0 +1,6 @@
+index="syslog-external"  etl_job="update_materialized_views"
+| transaction startswith="job_start" endswith="job_end"
+| eval transaction_name=customer."_".etl_job
+| eval duration=duration/60
+| table _time customer duration etl_job notifications status
+| search status = "fail"
