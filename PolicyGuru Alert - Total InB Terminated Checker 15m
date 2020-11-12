@@ -1,0 +1,43 @@
+| dbxquery
+maxrows=250000
+connection="ngp_connection"
+timeout=1800 query="
+SELECT a.allowed_calls,
+       b.terminated_calls
+       ,
+       CASE
+         WHEN b.terminated_calls = 0 THEN 0
+         WHEN b.terminated_calls > 0 AND a.allowed_calls = 0 THEN 100
+         ELSE ROUND((b.terminated_calls::numeric/(b.terminated_calls+a.allowed_calls))*100,3)
+       END as perc_term_calls
+FROM
+(
+SELECT 'myjoin'::text as myjoin,
+       COUNT(s.guid) as allowed_calls
+FROM   master.policyflowdetails s
+WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '5 MINUTE') * 1000)::bigint AND
+       s.policydisposition <> 2 AND
+       s.guid IN
+       (
+       SELECT guid
+       FROM   master.flowstart a
+       WHERE  a.analyticstime >= (extract (epoch from now() - INTERVAL '5 MINUTE') * 1000)::bigint AND
+              a.direction=1
+       )
+) a LEFT OUTER JOIN
+(
+SELECT 'myjoin'::text as myjoin,
+       COUNT(s.guid) as terminated_calls
+FROM   master.policyflowdetails s
+WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '5 MINUTE') * 1000)::bigint AND
+       s.policydisposition = 2 AND
+       s.guid IN
+       (
+       SELECT guid
+       FROM   master.flowstart a
+       WHERE  a.analyticstime >= (extract (epoch from now() - INTERVAL '5 MINUTE') * 1000)::bigint AND
+              a.direction=1
+       )
+) b ON a.myjoin=b.myjoin
+" shortnames=t
+| table allowed_calls terminated_calls perc_term_calls
