@@ -12,7 +12,7 @@ WHERE    a.routername LIKE 'enum%' AND
          (
          SELECT guid
          FROM   master.policyflowdetails s
-         WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES) * 1000)::bigint AND
+         WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
                 s.policydisposition = 2
          ) AND
          a.sourcenumber NOT IN
