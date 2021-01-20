@@ -1,0 +1,74 @@
+| dbxquery
+maxrows=250000
+connection="ngp_connection"
+timeout=1800
+query="
+SELECT   x.starttime,
+         x.endtime,
+         x.ts,
+         x.sourcenumber,
+         x.calls,
+         x.spread,
+         array_agg(x.concat_result) as dispositions
+FROM
+(
+SELECT   foo.starttime,
+         foo.endtime,
+         foo.ts,
+         foo.sourcenumber,
+         foo.calls,
+         foo.spread,
+         COALESCE(bar.calldispositions,'MAYBE ACTIVE') as calldispositions,
+         bar.calls as cd_calls,
+         COALESCE(bar.calldispositions,'MAYBE ACTIVE')||' ('||bar.calls||')' as concat_result
+FROM
+(
+SELECT   to_char(date_trunc('day',current_date),'YYYY-MM-DD') as starttime,
+         to_char(date_trunc('day',current_date) + interval '1 day','YYYY-MM-DD') as endtime,
+         to_char(now()::timestamp,'YYYY-MM-DD hh24:mi:ss') as ts,
+         sourcenumber,
+         COUNT(a.guid) as calls,
+         COUNT(distinct a.destinationnumber) as spread
+FROM     master.flowstart a
+WHERE    a.routername LIKE 'enum%' AND
+         a.direction = 1 AND
+         a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+         a.guid NOT IN
+         (
+         SELECT guid
+         FROM   master.policyflowdetails s
+         WHERE  s.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint AND
+                s.policydisposition = 2
+         ) AND
+         a.sourcenumber NOT IN
+         (
+         SELECT distinct a.value
+         FROM   master.listing a JOIN master.listinggroup b ON a.listinggroupid=b.id
+         WHERE  b.name IN ('Allowlist','WhiteList','Graylist')
+         ) AND
+         a.sourcenumber NOT IN ('Restricted','anonymous','Anonymous') AND
+         a.sourcenumber <> '' AND
+a.sourcenumber IS NOT NULL
+GROUP BY sourcenumber
+HAVING COUNT(a.guid) > 150
+ORDER BY COUNT(a.guid) DESC
+) foo LEFT OUTER JOIN
+(
+SELECT   sourcenumber,
+         REPLACE((b.meta::json->'callDispositions')::varchar,'\"','') as callDispositions,
+         COUNT(a.guid) as calls
+FROM     master.flowstart a LEFT OUTER JOIN master.flowend b ON a.guid=b.guid
+WHERE    a.direction = 1 AND
+         a.routername LIKE 'sip%' AND
+         a.analyticstime >= (extract (epoch from now() - INTERVAL '15 MINUTES') * 1000)::bigint
+GROUP BY sourcenumber, REPLACE((b.meta::json->'callDispositions')::varchar,'\"','')
+) bar ON foo.sourcenumber=bar.sourcenumber
+) x
+GROUP BY  x.starttime,
+          x.endtime,
+          x.ts,
+          x.sourcenumber,
+          x.calls,
+          x.spread
+" shortnames=t
+| table sourcenumber calls spread dispositions ts starttime endtime
