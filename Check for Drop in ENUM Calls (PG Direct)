@@ -1,0 +1,27 @@
+| dbxquery
+connection=ngp_connection
+query="
+SELECT foo.calls as yesterday_calls, 
+       bar.calls as last_yesterday_calls,
+       foo.calls-bar.calls as diff,
+       ROUND((foo.calls::numeric-bar.calls)/bar.calls,3)*100 as perc_diff
+FROM
+(
+SELECT 'myjoin' as myjoin,
+       COUNT(guid) as calls
+FROM   master.flowstart a
+WHERE  a.routername LIKE 'enum%' AND
+       a.analyticstime >= (extract('epoch' from (CURRENT_DATE - INTERVAL '1 DAY')) * 1000)::bigint AND
+       a.analyticstime  < (extract('epoch' from (CURRENT_DATE - INTERVAL '0 DAY')) * 1000)::bigint
+) foo LEFT OUTER JOIN
+(
+SELECT 'myjoin' as myjoin,
+       COUNT(guid) as calls
+FROM   master.flowstart a
+WHERE  a.routername LIKE 'enum%' AND
+       a.analyticstime >= (extract('epoch' from (CURRENT_DATE - INTERVAL '8 DAY')) * 1000)::bigint AND
+       a.analyticstime  < (extract('epoch' from (CURRENT_DATE - INTERVAL '7 DAY')) * 1000)::bigint
+) bar ON foo.myjoin::text=bar.myjoin::text
+"
+| table yesterday_calls last_yesterday_calls diff perc_diff
+| search perc_diff < -50
