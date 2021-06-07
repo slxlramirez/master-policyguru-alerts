@@ -1,0 +1,17 @@
+| inputlookup geico-eeyore-lookup.csv
+| search DeviceType=en
+| table Hostname
+| dedup Hostname
+| rename Hostname as client
+| join type=left client
+[
+| search index="syslog-external" check=ngpmon-memory
+| spath output=heap path="output.heap-memory-usage"
+| spath input=heap
+| eval pct_used = (used/max) * 100
+| lookup geico-eeyore-lookup.csv Hostname AS client OUTPUT DataCenter DeviceType
+| search DataCenter=fredricksburg OR DataCenter=chevychase
+| search DeviceType=en
+| stats count by client
+]
+| sort -count
