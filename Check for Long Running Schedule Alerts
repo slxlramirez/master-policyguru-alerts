@@ -1,0 +1,3 @@
+index="scheduler" savedsearch_name="PolicyGuru Alert*"
+| table _time savedsearch_name run_time
+| search run_time > 600
