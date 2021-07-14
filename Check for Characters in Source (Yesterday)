@@ -1,0 +1,19 @@
+| dbxquery
+maxrows=250000
+connection="local_ngp"
+timeout=1800 query="
+SELECT
+       sourcenumber,
+       regexp_matches(sourcenumber, '[a-zA-Z]') as sourcenumber_regex,
+       count(a.guid) as calls
+FROM     master.flowstart a
+WHERE    a.routername LIKE 'enum%' AND
+         a.direction = 1 AND
+         a.analyticstime >= (extract('epoch' from (CURRENT_TIMESTAMP::date - INTERVAL '1 day')) * 1000)::bigint AND
+         a.analyticstime  < (extract('epoch' from (CURRENT_TIMESTAMP::date                   )) * 1000)::bigint AND
+         lower(a.sourcenumber) NOT IN ('unavailable','anonymous','restricted','null') AND
+         lower(a.sourcenumber) NOT LIKE '%private%'
+GROUP BY sourcenumber, regexp_matches(sourcenumber, '[a-zA-Z]')
+ORDER BY count(a.guid) DESC
+" shortnames=t
+| table *
