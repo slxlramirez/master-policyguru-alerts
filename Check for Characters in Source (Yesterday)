@@ -12,7 +12,8 @@ WHERE    a.routername LIKE 'enum%' AND
          a.analyticstime >= (extract('epoch' from (CURRENT_TIMESTAMP::date - INTERVAL '1 day')) * 1000)::bigint AND
          a.analyticstime  < (extract('epoch' from (CURRENT_TIMESTAMP::date                   )) * 1000)::bigint AND
          lower(a.sourcenumber) NOT IN ('unavailable','anonymous','restricted','null') AND
-         lower(a.sourcenumber) NOT LIKE '%private%'
+         lower(a.sourcenumber) NOT LIKE '%private%' AND
+         lower(a.sourcenumber) NOT LIKE '%ext%'
 GROUP BY sourcenumber, regexp_matches(sourcenumber, '[a-zA-Z]')
 ORDER BY count(a.guid) DESC
 " shortnames=t
