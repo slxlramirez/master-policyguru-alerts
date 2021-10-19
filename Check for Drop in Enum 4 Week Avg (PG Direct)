@@ -9,8 +9,7 @@ SELECT    CURRENT_TIMESTAMP::date - INTERVAL '1 WEEK' - INTERVAL '1 DAY' as ts,
           COUNT(a.guid) as calls
 FROM      master.flowstart a
 WHERE     a.analyticstime >= (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '1 WEEK' - INTERVAL '1 DAY') * 1000)::bigint AND
-          a.analyticstime  < (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '1 WEEK' - INTERVAL '0 DAY') * 1000)::bigint AND
-          a.routername LIKE 'enum%'
+          a.analyticstime  < (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '1 WEEK' - INTERVAL '0 DAY') * 1000)::bigint 
 GROUP BY  CURRENT_TIMESTAMP::date - INTERVAL '1 WEEK' - INTERVAL '1 DAY', a.routername
 UNION
 SELECT    CURRENT_TIMESTAMP::date - INTERVAL '2 WEEK' - INTERVAL '1 DAY' as ts,
@@ -18,8 +17,7 @@ SELECT    CURRENT_TIMESTAMP::date - INTERVAL '2 WEEK' - INTERVAL '1 DAY' as ts,
           COUNT(a.guid) as calls
 FROM      master.flowstart a
 WHERE     a.analyticstime >= (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '2 WEEK' - INTERVAL '1 DAY') * 1000)::bigint AND
-          a.analyticstime  < (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '2 WEEK' - INTERVAL '0 DAY') * 1000)::bigint AND
-          a.routername LIKE 'enum%'
+          a.analyticstime  < (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '2 WEEK' - INTERVAL '0 DAY') * 1000)::bigint 
 GROUP BY  CURRENT_TIMESTAMP::date - INTERVAL '2 WEEK' - INTERVAL '1 DAY', a.routername
 UNION
 SELECT    CURRENT_TIMESTAMP::date - INTERVAL '3 WEEK' - INTERVAL '1 DAY' as ts,
@@ -27,8 +25,7 @@ SELECT    CURRENT_TIMESTAMP::date - INTERVAL '3 WEEK' - INTERVAL '1 DAY' as ts,
           COUNT(a.guid) as calls
 FROM      master.flowstart a
 WHERE     a.analyticstime >= (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '3 WEEK' - INTERVAL '1 DAY') * 1000)::bigint AND
-          a.analyticstime  < (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '3 WEEK' - INTERVAL '0 DAY') * 1000)::bigint AND
-          a.routername LIKE 'enum%'
+          a.analyticstime  < (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '3 WEEK' - INTERVAL '0 DAY') * 1000)::bigint 
 GROUP BY  CURRENT_TIMESTAMP::date - INTERVAL '3 WEEK' - INTERVAL '1 DAY', a.routername
 UNION
 SELECT    CURRENT_TIMESTAMP::date - INTERVAL '4 WEEK' - INTERVAL '1 DAY' as ts,
@@ -36,8 +33,7 @@ SELECT    CURRENT_TIMESTAMP::date - INTERVAL '4 WEEK' - INTERVAL '1 DAY' as ts,
           COUNT(a.guid) as calls
 FROM      master.flowstart a
 WHERE     a.analyticstime >= (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '4 WEEK' - INTERVAL '1 DAY') * 1000)::bigint AND
-          a.analyticstime  < (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '4 WEEK' - INTERVAL '0 DAY') * 1000)::bigint AND
-          a.routername LIKE 'enum%'
+          a.analyticstime  < (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '4 WEEK' - INTERVAL '0 DAY') * 1000)::bigint 
 GROUP BY  CURRENT_TIMESTAMP::date - INTERVAL '4 WEEK' - INTERVAL '1 DAY', a.routername
 ) 
 SELECT   routername,
@@ -60,8 +56,7 @@ SELECT    CURRENT_TIMESTAMP::date - INTERVAL '0 WEEK' - INTERVAL '1 DAY' as ts,
           COUNT(a.guid) as calls
 FROM      master.flowstart a
 WHERE     a.analyticstime >= (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '1 WEEK' - INTERVAL '1 DAY') * 1000)::bigint AND
-          a.analyticstime  < (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '1 WEEK' - INTERVAL '0 DAY') * 1000)::bigint AND
-          a.routername LIKE 'enum%'
+          a.analyticstime  < (extract('epoch' from CURRENT_TIMESTAMP::date - INTERVAL '1 WEEK' - INTERVAL '0 DAY') * 1000)::bigint 
 GROUP BY  CURRENT_TIMESTAMP::date - INTERVAL '0 WEEK' - INTERVAL '1 DAY', a.routername
 ) 
 SELECT   routername,
@@ -71,5 +66,11 @@ GROUP BY routername
 " shortnames=t
 ]
 | table routername yesterday_calls router_avg
-| eval perc_change = CASE(yesterday_calls = router_avg,0,1=1,ROUND((yesterday_calls-router_avg)/router_avg,3)*100)
+| fillnull value=0 yesterday_calls router_avg
+| eval perc_change = CASE(
+                            router_avg = 0, 100,  
+                           router_avg < 1000, 0,  
+                      yesterday_calls = 0, -100,  
+                   1=1,ROUND((yesterday_calls-router_avg)/router_avg,3)*100
+                          )
 | search perc_change < -50
