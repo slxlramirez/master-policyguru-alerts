@@ -1,0 +1,2 @@
+index="scheduler" (savedsearch_name="Concurrent Calls (ADS)" OR savedsearch_name="Concurrent Calls Checker Transpose v2" OR savedsearch_name="Concurrent Calls Checker Transpose") run_time > 10
+| table _time savedsearch_name status run_time user
